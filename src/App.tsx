@@ -337,33 +337,46 @@ export default function App() {
   const stats = useMemo(() => {
     if (!planData) return { totalCompleted: 0, totalPossible: 1, percentage: 0, subjectProgress: [] };
     
-    // Filter out subjects that are "Review" (مراجعة) from progress calculation
     const progressSubjects = planData.subjects.filter(s => !s.name.includes('مراجعة'));
+    const dayMapping = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
     
-    const sessionsList = Object.values(completedSessions) as string[][];
-    const totalCompleted = sessionsList.reduce((acc, curr) => {
-      // Only count completed sessions that are NOT review
-      const validSessions = curr.filter(sId => {
-        const [sessionId, day] = sId.split('-');
-        const session = generatedSchedule.find(s => s.id === sessionId);
+    let totalCompleted = 0;
+    const subjectCompletedCounts: Record<string, number> = {};
+    planData.subjects.forEach(s => subjectCompletedCounts[s.name] = 0);
+
+    Object.entries(completedSessions).forEach(([dateKey, sessions]) => {
+      // Split YYYY-MM-DD to avoid timezone shifts
+      const [year, month, dayNum] = dateKey.split('-').map(Number);
+      const date = new Date(year, month - 1, dayNum);
+      const day = dayMapping[date.getDay()];
+      
+      (sessions as string[]).forEach(sId => {
+        const session = generatedSchedule.find(s => s.id === sId);
         const subjectName = session?.subjects[day];
-        return subjectName && !subjectName.includes('مراجعة');
+        if (subjectName) {
+          // Increment subject specific count
+          const baseSubject = planData.subjects.find(s => subjectName.includes(s.name));
+          if (baseSubject) {
+            subjectCompletedCounts[baseSubject.name]++;
+          }
+          
+          // Increment total progress if not review
+          if (!subjectName.includes('مراجعة')) {
+            totalCompleted++;
+          }
+        }
       });
-      return acc + validSessions.length;
-    }, 0);
+    });
 
     const totalPossible = progressSubjects.reduce((a, b) => a + (b?.totalLectures || 0), 0) || 1;
     
     const subjectProgress = planData.subjects.map(subject => {
-      let completedCount = 0;
-      Object.values(completedSessions).forEach((sessions) => {
-        (sessions as string[]).forEach(sId => {
-          const [sessionId, day] = sId.split('-');
-          const session = generatedSchedule.find(s => s.id === sessionId);
-          if (session && session.subjects[day]?.includes(subject.name)) completedCount++;
-        });
-      });
-      return { ...subject, completed: completedCount, percent: Math.min(100, Math.round((completedCount / subject.totalLectures) * 100)) };
+      const completedCount = subjectCompletedCounts[subject.name] || 0;
+      return { 
+        ...subject, 
+        completed: completedCount, 
+        percent: Math.min(100, Math.round((completedCount / subject.totalLectures) * 100)) 
+      };
     });
 
     return { totalCompleted, totalPossible, percentage: Math.round((totalCompleted / totalPossible) * 100), subjectProgress };
