@@ -420,7 +420,6 @@ export default function App() {
   const stats = useMemo(() => {
     if (!planData) return { totalCompleted: 0, totalPossible: 1, percentage: 0, subjectProgress: [] };
     
-    const progressSubjects = planData.subjects.filter(s => !s.name.includes('مراجعة'));
     const dayMapping = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
     
     let totalCompleted = 0;
@@ -447,15 +446,13 @@ export default function App() {
             subjectCompletedCounts[baseSubject.name]++;
           }
           
-          // Increment total progress if not review
-          if (!subjectName.includes('مراجعة')) {
-            totalCompleted++;
-          }
+          // Increment total progress
+          totalCompleted++;
         }
       });
     });
 
-    const totalPossible = progressSubjects.reduce((a, b) => a + (b?.totalLectures || 0), 0) || 1;
+    const totalPossible = planData.subjects.reduce((a, b) => a + (b?.totalLectures || 0), 0) || 1;
     
     const subjectProgress = planData.subjects.map(subject => {
       const completedCount = subjectCompletedCounts[subject.name] || 0;

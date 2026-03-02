@@ -21,7 +21,7 @@ export const SUBJECTS: Subject[] = [
   { id: 'english', name: 'إنجليزي', weeklyLectures: 0, totalLectures: 0, color: '#f59e0b' },
   { id: 'islamic', name: 'إسلامية', weeklyLectures: 0, totalLectures: 0, color: '#8b5cf6' },
   { id: 'chemistry', name: 'كيمياء', weeklyLectures: 0, totalLectures: 0, color: '#ec4899' },
-  { id: 'review', name: 'مراجعة', weeklyLectures: 0, totalLectures: 0, color: '#6b7280' },
+  { id: 'math', name: 'رياضيات', weeklyLectures: 0, totalLectures: 0, color: '#06b6d4' },
 ];
 
 export const DAYS = ['السبت', 'الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة'];
