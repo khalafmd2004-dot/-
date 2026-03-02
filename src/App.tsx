@@ -655,7 +655,29 @@ export default function App() {
                 </Card>
               </div>
 
-              <h3 className="text-lg font-bold text-slate-900 mt-8">تقدم المواد</h3>
+              <div className="flex items-center justify-between mt-8 mb-4">
+                <h3 className="text-lg font-bold text-slate-900">تقدم المواد</h3>
+                <button 
+                  onClick={() => {
+                    const newSubjectName = prompt('أدخل اسم المادة الجديدة:');
+                    if (newSubjectName) {
+                      const total = parseInt(prompt('أدخل إجمالي عدد المحاضرات لهذه المادة:') || '30');
+                      const color = SUBJECTS.find(s => s.name === newSubjectName)?.color || '#6366f1';
+                      setPlanData(prev => {
+                        if (!prev) return prev;
+                        return {
+                          ...prev,
+                          subjects: [...prev.subjects, { name: newSubjectName, totalLectures: total, color }]
+                        };
+                      });
+                    }
+                  }}
+                  className="flex items-center gap-1 text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-lg hover:bg-indigo-100 transition-all"
+                >
+                  <Plus className="w-3 h-3" />
+                  إضافة مادة
+                </button>
+              </div>
               <div className="space-y-4">
                 {stats.subjectProgress.map((sub, idx) => (
                   <Card key={idx} className="p-5">

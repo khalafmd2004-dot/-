@@ -20,6 +20,7 @@ export const SUBJECTS: Subject[] = [
   { id: 'biology', name: 'أحياء', weeklyLectures: 0, totalLectures: 0, color: '#10b981' },
   { id: 'english', name: 'إنجليزي', weeklyLectures: 0, totalLectures: 0, color: '#f59e0b' },
   { id: 'islamic', name: 'إسلامية', weeklyLectures: 0, totalLectures: 0, color: '#8b5cf6' },
+  { id: 'chemistry', name: 'كيمياء', weeklyLectures: 0, totalLectures: 0, color: '#ec4899' },
   { id: 'review', name: 'مراجعة', weeklyLectures: 0, totalLectures: 0, color: '#6b7280' },
 ];
 
