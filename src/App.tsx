@@ -217,9 +217,15 @@ const SetupWizard = ({ onComplete }: { onComplete: (data: PlanData) => void }) =
   );
 };
 
-const TimerComponent = ({ activeSession, onFinish }: { activeSession: { id: string, name: string } | null, onFinish: () => void }) => {
+const TimerComponent = ({ activeSession, subjects, onFinish, onSelectSession }: { 
+  activeSession: { id: string, name: string } | null, 
+  subjects: { name: string, color: string }[],
+  onFinish: () => void,
+  onSelectSession: (session: { id: string, name: string }) => void
+}) => {
   const [timeLeft, setTimeLeft] = useState(50 * 60); // 50 minutes
   const [isActive, setIsActive] = useState(false);
+  const [showPicker, setShowPicker] = useState(false);
 
   useEffect(() => {
     let interval: any = null;
@@ -246,7 +252,7 @@ const TimerComponent = ({ activeSession, onFinish }: { activeSession: { id: stri
   };
 
   return (
-    <div className="flex flex-col items-center justify-center py-12">
+    <div className="flex flex-col items-center justify-center py-8">
       <div className="relative w-72 h-72 flex items-center justify-center">
         <svg className="w-full h-full transform -rotate-90">
           <circle
@@ -272,9 +278,46 @@ const TimerComponent = ({ activeSession, onFinish }: { activeSession: { id: stri
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
           <span className="text-6xl font-mono font-bold text-slate-900">{formatTime(timeLeft)}</span>
-          <span className="text-slate-400 mt-2 font-bold">{activeSession?.name || 'اختر جلسة'}</span>
+          <button 
+            onClick={() => setShowPicker(true)}
+            className="text-indigo-600 mt-2 font-bold flex items-center gap-1 hover:bg-indigo-50 px-3 py-1 rounded-lg transition-all"
+          >
+            {activeSession?.name || 'اختر مادة'}
+            <Settings className="w-3 h-3" />
+          </button>
         </div>
       </div>
+
+      <AnimatePresence>
+        {showPicker && (
+          <motion.div 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 10 }}
+            className="absolute inset-x-6 bottom-32 bg-white rounded-3xl shadow-2xl border border-slate-100 p-6 z-[60]"
+          >
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-bold">اختر مادة الجلسة</h3>
+              <button onClick={() => setShowPicker(false)}><X className="w-5 h-5 text-slate-400" /></button>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              {subjects.map((sub, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => {
+                    onSelectSession({ id: `manual-${idx}`, name: sub.name });
+                    setShowPicker(false);
+                  }}
+                  className="p-3 rounded-xl border border-slate-100 hover:bg-slate-50 text-right flex items-center gap-2"
+                >
+                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: sub.color }} />
+                  <span className="text-sm font-bold">{sub.name}</span>
+                </button>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div className="flex gap-6 mt-12">
         <button 
@@ -319,20 +362,60 @@ export default function App() {
     const subjects = planData.subjects.filter(s => s.totalLectures > 0);
     if (subjects.length === 0) return [];
     const times = ['٨:٠٠ - ٩:٣٠', '٩:٤٥ - ١١:١٥', '١١:٣٠ - ١٢:٤٥', '١٢:٤٥ - ٢:٠٠'];
+    const dayMapping = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
     
-    return times.map((time, tIdx) => {
-      const daySubjects: Record<string, string> = {};
-      DAYS.forEach((day, dIdx) => {
-        if (day === 'الجمعة') {
-          daySubjects[day] = '😴 راحة';
-        } else {
-          const sIdx = (tIdx + dIdx * times.length) % subjects.length;
-          daySubjects[day] = subjects[sIdx].name;
-        }
+    // Generate for all weeks
+    const start = new Date(planData.startDate);
+    const end = new Date(planData.endDate);
+    const totalDays = differenceInDays(end, start) + 1;
+    const weeks = [];
+    
+    for (let i = 0; i < totalDays; i += 7) {
+      const weekSessions = times.map((time, tIdx) => {
+        const daySubjects: Record<string, string> = {};
+        DAYS.forEach((day, dIdx) => {
+          const currentDayIndex = (i + dIdx);
+          if (day === 'الجمعة') {
+            daySubjects[day] = '😴 راحة';
+          } else {
+            const sIdx = (tIdx + currentDayIndex * times.length) % subjects.length;
+            daySubjects[day] = subjects[sIdx].name;
+          }
+        });
+        return { id: `s${tIdx + 1}`, time, subjects: daySubjects };
       });
-      return { id: `s${tIdx + 1}`, time, subjects: daySubjects };
-    });
+      weeks.push({ weekNumber: Math.floor(i / 7) + 1, sessions: weekSessions });
+    }
+    return weeks;
   }, [planData]);
+
+  const backlog = useMemo(() => {
+    if (!planData || generatedSchedule.length === 0) return [];
+    const start = new Date(planData.startDate);
+    const today = startOfToday();
+    const backlogItems: { date: string, dateKey: string, session: any, subject: string }[] = [];
+    const dayMapping = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+
+    for (let d = new Date(start); d < today; d.setDate(d.getDate() + 1)) {
+      const dateKey = format(d, 'yyyy-MM-dd');
+      const dayName = dayMapping[d.getDay()];
+      const weekIdx = Math.floor(differenceInDays(d, start) / 7);
+      const week = generatedSchedule[weekIdx];
+      
+      if (week) {
+        week.sessions.forEach((session: any) => {
+          const subject = session.subjects[dayName];
+          if (subject && subject !== '😴 راحة') {
+            const isCompleted = completedSessions[dateKey]?.includes(session.id);
+            if (!isCompleted) {
+              backlogItems.push({ date: format(d, 'dd MMMM'), dateKey, session, subject });
+            }
+          }
+        });
+      }
+    }
+    return backlogItems;
+  }, [planData, generatedSchedule, completedSessions]);
 
   const stats = useMemo(() => {
     if (!planData) return { totalCompleted: 0, totalPossible: 1, percentage: 0, subjectProgress: [] };
@@ -350,8 +433,12 @@ export default function App() {
       const date = new Date(year, month - 1, dayNum);
       const day = dayMapping[date.getDay()];
       
+      const start = new Date(planData.startDate);
+      const weekIdx = Math.floor(differenceInDays(date, start) / 7);
+      const week = generatedSchedule[weekIdx];
+
       (sessions as string[]).forEach(sId => {
-        const session = generatedSchedule.find(s => s.id === sId);
+        const session = week?.sessions.find((s: any) => s.id === sId);
         const subjectName = session?.subjects[day];
         if (subjectName) {
           // Increment subject specific count
@@ -453,7 +540,7 @@ export default function App() {
               </div>
 
               <div className="space-y-4">
-                {generatedSchedule.map((session) => {
+                {generatedSchedule[Math.floor(differenceInDays(currentDate, new Date(planData.startDate)) / 7)]?.sessions.map((session: any) => {
                   const subjectName = session.subjects[dayOfWeek];
                   const dateKey = format(currentDate, 'yyyy-MM-dd');
                   const isCompleted = completedSessions[dateKey]?.includes(session.id);
@@ -478,40 +565,77 @@ export default function App() {
                   );
                 })}
               </div>
+
+              {backlog.length > 0 && (
+                <div className="mt-12 space-y-6">
+                  <div className="flex items-center gap-2 text-red-500">
+                    <Info className="w-5 h-5" />
+                    <h2 className="text-xl font-bold">تراكمات سابقة</h2>
+                  </div>
+                  <div className="space-y-4">
+                    {backlog.map((item, idx) => (
+                      <Card key={idx} className="flex items-center justify-between border-red-50">
+                        <div className="flex items-center gap-4">
+                          <button onClick={() => toggleSession(item.dateKey, item.session.id)} className="w-8 h-8 rounded-full border-2 border-slate-200 text-slate-200 flex items-center justify-center transition-all">
+                            <CheckCircle2 className="w-5 h-5" />
+                          </button>
+                          <div>
+                            <h3 className="font-bold text-lg">{item.subject}</h3>
+                            <p className="text-xs text-slate-400 font-medium">{item.date} • {item.session.time}</p>
+                          </div>
+                        </div>
+                        <button onClick={() => { setActiveTimingSession({ id: item.session.id, name: item.subject }); setActiveTab('timer'); }} className="p-3 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-all">
+                          <Play className="w-5 h-5 fill-current" />
+                        </button>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              )}
             </motion.div>
           )}
 
           {activeTab === 'schedule' && (
-            <motion.div key="schedule" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-6">
-              <div className="overflow-x-auto -mx-6 px-6 no-scrollbar">
-                <table className="w-full border-separate border-spacing-y-3">
-                  <thead>
-                    <tr>
-                      <th className="text-right text-xs font-bold text-slate-400 pb-2 pr-4">الوقت</th>
-                      {DAYS.map(day => <th key={day} className="text-center text-xs font-bold text-slate-400 pb-2">{day}</th>)}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {generatedSchedule.map(session => (
-                      <tr key={session.id}>
-                        <td className="bg-white rounded-r-2xl p-4 text-xs font-bold text-slate-500 shadow-sm border-y border-r border-slate-100">{session.time}</td>
-                        {DAYS.map(day => (
-                          <td key={day} className={cn("bg-white p-4 text-center text-sm font-bold shadow-sm border-y border-slate-100 last:rounded-l-2xl last:border-l", day === dayOfWeek && "bg-indigo-50/50")}>
-                            {session.subjects[day]}
-                          </td>
+            <motion.div key="schedule" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-12">
+              {generatedSchedule.map((week) => (
+                <div key={week.weekNumber} className="space-y-4">
+                  <h3 className="text-lg font-bold text-indigo-600 bg-indigo-50 w-fit px-4 py-1 rounded-full">الأسبوع {week.weekNumber}</h3>
+                  <div className="overflow-x-auto -mx-6 px-6 no-scrollbar">
+                    <table className="w-full border-separate border-spacing-y-3">
+                      <thead>
+                        <tr>
+                          <th className="text-right text-xs font-bold text-slate-400 pb-2 pr-4">الوقت</th>
+                          {DAYS.map(day => <th key={day} className="text-center text-xs font-bold text-slate-400 pb-2">{day}</th>)}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {week.sessions.map((session: any) => (
+                          <tr key={session.id}>
+                            <td className="bg-white rounded-r-2xl p-4 text-xs font-bold text-slate-500 shadow-sm border-y border-r border-slate-100">{session.time}</td>
+                            {DAYS.map(day => (
+                              <td key={day} className={cn("bg-white p-4 text-center text-sm font-bold shadow-sm border-y border-slate-100 last:rounded-l-2xl last:border-l", day === dayOfWeek && "bg-indigo-50/50")}>
+                                {session.subjects[day]}
+                              </td>
+                            ))}
+                          </tr>
                         ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ))}
             </motion.div>
           )}
 
           {activeTab === 'timer' && (
             <motion.div key="timer" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}>
               <Card className="py-12">
-                <TimerComponent activeSession={activeTimingSession} onFinish={() => { if (activeTimingSession) toggleSession(format(currentDate, 'yyyy-MM-dd'), activeTimingSession.id); setActiveTimingSession(null); }} />
+                <TimerComponent 
+                  activeSession={activeTimingSession} 
+                  subjects={planData.subjects}
+                  onSelectSession={setActiveTimingSession}
+                  onFinish={() => { if (activeTimingSession) toggleSession(format(currentDate, 'yyyy-MM-dd'), activeTimingSession.id); setActiveTimingSession(null); }} 
+                />
               </Card>
             </motion.div>
           )}
