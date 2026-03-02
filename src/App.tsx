@@ -29,6 +29,7 @@ import { SUBJECTS, DAYS } from './constants';
 interface PlanData {
   id: string;
   name: string;
+  fileInfo?: string;
   subjects: {
     name: string;
     totalLectures: number;
@@ -82,6 +83,7 @@ const Card = ({ children, className, onClick }: { children: React.ReactNode, cla
 const SetupWizard = ({ onComplete }: { onComplete: (data: PlanData) => void }) => {
   const [step, setStep] = useState(1);
   const [name, setName] = useState('');
+  const [fileInfo, setFileInfo] = useState('');
   const [endDate, setEndDate] = useState('2026-05-01');
   const [subjects, setSubjects] = useState(SUBJECTS.map(s => ({ name: s.name, totalLectures: 30, color: s.color })));
 
@@ -89,6 +91,7 @@ const SetupWizard = ({ onComplete }: { onComplete: (data: PlanData) => void }) =
     const plan: PlanData = {
       id: Math.random().toString(36).substring(2, 11),
       name,
+      fileInfo,
       subjects,
       endDate,
       startDate: format(new Date(), 'yyyy-MM-dd')
@@ -121,6 +124,16 @@ const SetupWizard = ({ onComplete }: { onComplete: (data: PlanData) => void }) =
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="مثال: محمد"
+                  className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 transition-all text-lg"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-2 mr-1">معلومات الملف (اختياري)</label>
+                <input 
+                  type="text" 
+                  value={fileInfo}
+                  onChange={(e) => setFileInfo(e.target.value)}
+                  placeholder="مثال: دفعة 2026"
                   className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 transition-all text-lg"
                 />
               </div>
@@ -205,7 +218,7 @@ const SetupWizard = ({ onComplete }: { onComplete: (data: PlanData) => void }) =
 };
 
 const TimerComponent = ({ activeSession, onFinish }: { activeSession: { id: string, name: string } | null, onFinish: () => void }) => {
-  const [timeLeft, setTimeLeft] = useState(45 * 60); // 45 minutes
+  const [timeLeft, setTimeLeft] = useState(50 * 60); // 50 minutes
   const [isActive, setIsActive] = useState(false);
 
   useEffect(() => {
@@ -253,7 +266,7 @@ const TimerComponent = ({ activeSession, onFinish }: { activeSession: { id: stri
             strokeWidth="8"
             fill="transparent"
             strokeDasharray="816.8"
-            animate={{ strokeDashoffset: 816.8 * (1 - timeLeft / (45 * 60)) }}
+            animate={{ strokeDashoffset: 816.8 * (1 - timeLeft / (50 * 60)) }}
             className="text-indigo-600"
           />
         </svg>
@@ -265,7 +278,7 @@ const TimerComponent = ({ activeSession, onFinish }: { activeSession: { id: stri
 
       <div className="flex gap-6 mt-12">
         <button 
-          onClick={() => setTimeLeft(45 * 60)}
+          onClick={() => setTimeLeft(50 * 60)}
           className="w-20 h-20 rounded-full bg-slate-100 text-slate-400 hover:bg-slate-200 transition-all flex items-center justify-center"
         >
           <RotateCcw className="w-8 h-8" />
@@ -323,9 +336,23 @@ export default function App() {
 
   const stats = useMemo(() => {
     if (!planData) return { totalCompleted: 0, totalPossible: 1, percentage: 0, subjectProgress: [] };
+    
+    // Filter out subjects that are "Review" (مراجعة) from progress calculation
+    const progressSubjects = planData.subjects.filter(s => !s.name.includes('مراجعة'));
+    
     const sessionsList = Object.values(completedSessions) as string[][];
-    const totalCompleted = sessionsList.reduce((acc, curr) => acc + (curr?.length || 0), 0);
-    const totalPossible = planData.subjects.reduce((a, b) => a + (b?.totalLectures || 0), 0) || 1;
+    const totalCompleted = sessionsList.reduce((acc, curr) => {
+      // Only count completed sessions that are NOT review
+      const validSessions = curr.filter(sId => {
+        const [sessionId, day] = sId.split('-');
+        const session = generatedSchedule.find(s => s.id === sessionId);
+        const subjectName = session?.subjects[day];
+        return subjectName && !subjectName.includes('مراجعة');
+      });
+      return acc + validSessions.length;
+    }, 0);
+
+    const totalPossible = progressSubjects.reduce((a, b) => a + (b?.totalLectures || 0), 0) || 1;
     
     const subjectProgress = planData.subjects.map(subject => {
       let completedCount = 0;
@@ -371,40 +398,27 @@ export default function App() {
     <div className="min-h-screen bg-slate-50 text-slate-900 pb-24" dir="rtl">
       {/* Header */}
       <header className="bg-white px-6 pt-8 pb-6 rounded-b-[2.5rem] shadow-sm border-b border-slate-100 sticky top-0 z-50">
-        <div className="max-w-4xl mx-auto flex items-center justify-between mb-6">
+        <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-100">
               <BookOpen className="w-6 h-6 text-white" />
             </div>
             <div>
               <h1 className="text-xl font-bold text-slate-900">أهلاً، {planData.name}</h1>
-              <p className="text-xs text-slate-400 font-medium">متبقي {differenceInDays(new Date(planData.endDate), currentDate)} يوم على النهاية</p>
+              <div className="flex items-center gap-2">
+                <p className="text-xs text-slate-400 font-medium">متبقي {differenceInDays(new Date(planData.endDate), currentDate)} يوم</p>
+                {planData.fileInfo && (
+                  <>
+                    <span className="w-1 h-1 bg-slate-200 rounded-full" />
+                    <p className="text-xs text-indigo-500 font-bold">{planData.fileInfo}</p>
+                  </>
+                )}
+              </div>
             </div>
           </div>
           <button onClick={handleReset} className="p-3 bg-slate-50 text-slate-400 rounded-xl hover:text-red-500 transition-colors">
             <Trash2 className="w-5 h-5" />
           </button>
-        </div>
-
-        <div className="max-w-4xl mx-auto flex gap-2 overflow-x-auto pb-2 no-scrollbar">
-          {[
-            { id: 'today', label: 'اليوم', icon: Calendar },
-            { id: 'schedule', label: 'الجدول', icon: LayoutGrid },
-            { id: 'timer', label: 'المؤقت', icon: Timer },
-            { id: 'stats', label: 'الإحصائيات', icon: BarChart3 },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as TabType)}
-              className={cn(
-                "flex items-center gap-2 px-6 py-3 rounded-2xl font-bold text-sm transition-all whitespace-nowrap",
-                activeTab === tab.id ? "bg-indigo-600 text-white shadow-lg shadow-indigo-100" : "bg-slate-50 text-slate-400 hover:bg-slate-100"
-              )}
-            >
-              <tab.icon className="w-4 h-4" />
-              {tab.label}
-            </button>
-          ))}
         </div>
       </header>
 
@@ -520,6 +534,32 @@ export default function App() {
           )}
         </AnimatePresence>
       </main>
+      {/* Bottom Navigation */}
+      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 px-6 py-4 z-50 flex justify-around items-center rounded-t-[2rem] shadow-[0_-10px_25px_-5px_rgba(0,0,0,0.05)]">
+        {[
+          { id: 'today', label: 'اليوم', icon: Calendar },
+          { id: 'schedule', label: 'الجدول', icon: LayoutGrid },
+          { id: 'timer', label: 'المؤقت', icon: Timer },
+          { id: 'stats', label: 'الإحصائيات', icon: BarChart3 },
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id as TabType)}
+            className={cn(
+              "flex flex-col items-center gap-1 transition-all",
+              activeTab === tab.id ? "text-indigo-600" : "text-slate-400"
+            )}
+          >
+            <div className={cn(
+              "p-2 rounded-xl transition-all",
+              activeTab === tab.id ? "bg-indigo-50" : "bg-transparent"
+            )}>
+              <tab.icon className="w-6 h-6" />
+            </div>
+            <span className="text-[10px] font-bold">{tab.label}</span>
+          </button>
+        ))}
+      </nav>
     </div>
   );
 }
