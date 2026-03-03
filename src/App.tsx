@@ -349,6 +349,7 @@ export default function App() {
   });
 
   const [activeTab, setActiveTab] = useState<TabType>('today');
+  const [viewDate, setViewDate] = useState(startOfToday());
   const [activeTimingSession, setActiveTimingSession] = useState<{ id: string; name: string } | null>(null);
   const [welcomeQuote] = useState(() => MOTIVATIONAL_QUOTES[Math.floor(Math.random() * MOTIVATIONAL_QUOTES.length)]);
 
@@ -469,8 +470,8 @@ export default function App() {
   const currentDate = startOfToday();
   const dayOfWeek = useMemo(() => {
     const mapping = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
-    return mapping[currentDate.getDay()];
-  }, [currentDate]);
+    return mapping[viewDate.getDay()];
+  }, [viewDate]);
 
   const toggleSession = (dateKey: string, sessionId: string) => {
     setCompletedSessions(prev => {
@@ -532,14 +533,38 @@ export default function App() {
               </Card>
 
               <div className="flex items-center justify-between">
-                <h2 className="text-xl font-bold text-slate-900">مهام {dayOfWeek}</h2>
-                <span className="text-xs font-bold text-slate-400">{format(currentDate, 'dd MMMM')}</span>
+                <div className="flex items-center gap-3">
+                  <button 
+                    onClick={() => setViewDate(prev => addDays(prev, -1))}
+                    className="p-2 bg-white rounded-xl border border-slate-100 text-slate-400 hover:text-indigo-600 transition-all"
+                  >
+                    <RotateCcw className="w-4 h-4 transform rotate-180" />
+                  </button>
+                  <h2 className="text-xl font-bold text-slate-900">مهام {dayOfWeek}</h2>
+                  <button 
+                    onClick={() => setViewDate(prev => addDays(prev, 1))}
+                    className="p-2 bg-white rounded-xl border border-slate-100 text-slate-400 hover:text-indigo-600 transition-all"
+                  >
+                    <RotateCcw className="w-4 h-4 transform -scale-x-100" />
+                  </button>
+                </div>
+                <div className="flex flex-col items-end">
+                  <span className="text-xs font-bold text-slate-400">{format(viewDate, 'dd MMMM')}</span>
+                  {differenceInDays(viewDate, startOfToday()) !== 0 && (
+                    <button 
+                      onClick={() => setViewDate(startOfToday())}
+                      className="text-[10px] font-bold text-indigo-500 hover:underline"
+                    >
+                      العودة لليوم
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div className="space-y-4">
-                {generatedSchedule[Math.floor(differenceInDays(currentDate, new Date(planData.startDate)) / 7)]?.sessions.map((session: any) => {
+                {generatedSchedule[Math.floor(differenceInDays(viewDate, new Date(planData.startDate)) / 7)]?.sessions.map((session: any) => {
                   const subjectName = session.subjects[dayOfWeek];
-                  const dateKey = format(currentDate, 'yyyy-MM-dd');
+                  const dateKey = format(viewDate, 'yyyy-MM-dd');
                   const isCompleted = completedSessions[dateKey]?.includes(session.id);
                   
                   if (subjectName === '😴 راحة') return null;
@@ -631,7 +656,7 @@ export default function App() {
                   activeSession={activeTimingSession} 
                   subjects={planData.subjects}
                   onSelectSession={setActiveTimingSession}
-                  onFinish={() => { if (activeTimingSession) toggleSession(format(currentDate, 'yyyy-MM-dd'), activeTimingSession.id); setActiveTimingSession(null); }} 
+                  onFinish={() => { if (activeTimingSession) toggleSession(format(viewDate, 'yyyy-MM-dd'), activeTimingSession.id); setActiveTimingSession(null); }} 
                 />
               </Card>
             </motion.div>
